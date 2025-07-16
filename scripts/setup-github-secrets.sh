@@ -1,15 +1,13 @@
 #!/bin/bash
 
-# Setup GitHub Secrets for AIMCS Deployment
-# This script helps you set up the required GitHub secrets
+# GitHub Secrets Setup Script for Orb Game
+# This script sets up all required secrets for the AIMCS Orb Game deployment
 
 set -e
 
-echo "🔧 Setting up GitHub Secrets for AIMCS Deployment"
-echo "=================================================="
-echo ""
+echo "🔐 Setting up GitHub secrets for Orb Game deployment..."
 
-# Check if gh CLI is installed
+# Check if GitHub CLI is installed and authenticated
 if ! command -v gh &> /dev/null; then
     echo "❌ GitHub CLI is not installed. Please install it first:"
     echo "   https://cli.github.com/"
@@ -22,24 +20,9 @@ if ! gh auth status &> /dev/null; then
     gh auth login
 fi
 
-echo "📋 Required GitHub Secrets:"
-echo "==========================="
-echo ""
-echo "1. AZURE_CREDENTIALS - Azure service principal credentials"
-echo "2. AZURE_OPENAI_ENDPOINT - Your Azure OpenAI endpoint"
-echo "3. AZURE_OPENAI_API_KEY - Your Azure OpenAI API key"
-echo "4. AZURE_OPENAI_DEPLOYMENT - Your Azure OpenAI deployment name"
-echo "5. AZURE_OPENAI_TTS_DEPLOYMENT - Your Azure OpenAI TTS deployment name"
-echo "6. PERPLEXITY_API_KEY - Your Perplexity API key for web search"
-echo ""
-
-echo "🚀 Setting up secrets..."
-echo ""
-
 # Get current repository
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
 echo "📦 Repository: $REPO"
-echo ""
 
 # Function to set secret
 set_secret() {
@@ -47,49 +30,106 @@ set_secret() {
     local secret_value=$2
     local description=$3
     
-    echo "Setting $secret_name..."
-    echo "$secret_value" | gh secret set "$secret_name" --repo "$REPO"
+    echo "🔧 Setting $secret_name..."
+    echo "$secret_value" | gh secret set "$secret_name" --repo "$REPO" --body -
     echo "✅ $secret_name set successfully"
-    echo ""
 }
 
-# Prompt for secrets
-echo "Please provide the following values:"
+# Function to prompt for secret value
+prompt_secret() {
+    local secret_name=$1
+    local description=$2
+    local default_value=$3
+    
+    echo ""
+    echo "📝 $description"
+    if [ -n "$default_value" ]; then
+        echo "   Default: $default_value"
+    fi
+    read -p "   Enter value for $secret_name: " secret_value
+    
+    if [ -z "$secret_value" ] && [ -n "$default_value" ]; then
+        secret_value="$default_value"
+    fi
+    
+    if [ -n "$secret_value" ]; then
+        set_secret "$secret_name" "$secret_value" "$description"
+    else
+        echo "⚠️  Skipping $secret_name"
+    fi
+}
+
+echo ""
+echo "🚀 Setting up Orb Game secrets..."
 echo ""
 
-# Azure Credentials
-echo "🔑 Azure Service Principal Credentials (JSON format):"
-echo "   Run: az ad sp create-for-rbac --name aimcs-deploy --role contributor --scopes /subscriptions/YOUR_SUBSCRIPTION_ID --sdk-auth"
-echo "   Copy the entire JSON output:"
-read -p "Azure Credentials JSON: " AZURE_CREDENTIALS
+# Azure OpenAI Secrets
+echo "🔵 Azure OpenAI Configuration"
+echo "=============================="
 
-# Azure OpenAI
-read -p "Azure OpenAI Endpoint (e.g., https://aimcs-foundry.cognitiveservices.azure.com/): " AZURE_OPENAI_ENDPOINT
-read -p "Azure OpenAI API Key: " AZURE_OPENAI_API_KEY
-read -p "Azure OpenAI Deployment Name (default: o4-mini): " AZURE_OPENAI_DEPLOYMENT
-AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT:-o4-mini}
-read -p "Azure OpenAI TTS Deployment Name (default: gpt-4o-mini-tts): " AZURE_OPENAI_TTS_DEPLOYMENT
-AZURE_OPENAI_TTS_DEPLOYMENT=${AZURE_OPENAI_TTS_DEPLOYMENT:-gpt-4o-mini-tts}
+prompt_secret "AZURE_OPENAI_ENDPOINT" \
+    "Azure OpenAI service endpoint" \
+    "https://aimcs-foundry.cognitiveservices.azure.com/"
 
-# Perplexity API Key
-read -p "Perplexity API Key: " PERPLEXITY_API_KEY
+prompt_secret "AZURE_OPENAI_API_KEY" \
+    "Azure OpenAI API key (get from Azure Portal)" \
+    ""
+
+prompt_secret "AZURE_OPENAI_DEPLOYMENT" \
+    "Azure OpenAI chat model deployment name" \
+    "o4-mini"
+
+prompt_secret "AZURE_OPENAI_TTS_DEPLOYMENT" \
+    "Azure OpenAI TTS model deployment name" \
+    "gpt-4o-mini-tts"
+
+# MongoDB Atlas Secret
+echo ""
+echo "🟢 MongoDB Atlas Configuration"
+echo "=============================="
+
+prompt_secret "MONGO_URI" \
+    "MongoDB Atlas connection string (format: mongodb+srv://username:password@cluster.mongodb.net/aimcs?retryWrites=true&w=majority)" \
+    ""
+
+# Perplexity API Secret (Optional)
+echo ""
+echo "🟡 Perplexity API Configuration (Optional)"
+echo "=========================================="
+
+prompt_secret "PERPLEXITY_API_KEY" \
+    "Perplexity API key for live news fetching (optional)" \
+    ""
+
+# Azure Deployment Secrets
+echo ""
+echo "🔴 Azure Deployment Configuration"
+echo "================================="
+
+prompt_secret "AZURE_STATIC_WEB_APPS_API_TOKEN_PROUD_HILL_01B4B180F" \
+    "Azure Static Web Apps deployment token" \
+    ""
+
+# Optional: Azure Service Principal (for advanced deployments)
+echo ""
+echo "⚪ Azure Service Principal (Optional)"
+echo "===================================="
+
+read -p "   Do you want to set up Azure service principal credentials? (y/N): " setup_sp
+if [[ $setup_sp =~ ^[Yy]$ ]]; then
+    prompt_secret "AZURE_CREDENTIALS" \
+        "Azure service principal JSON credentials" \
+        ""
+fi
 
 echo ""
-echo "🔐 Setting secrets in GitHub..."
-
-# Set all secrets
-set_secret "AZURE_CREDENTIALS" "$AZURE_CREDENTIALS" "Azure service principal credentials"
-set_secret "AZURE_OPENAI_ENDPOINT" "$AZURE_OPENAI_ENDPOINT" "Azure OpenAI endpoint"
-set_secret "AZURE_OPENAI_API_KEY" "$AZURE_OPENAI_API_KEY" "Azure OpenAI API key"
-set_secret "AZURE_OPENAI_DEPLOYMENT" "$AZURE_OPENAI_DEPLOYMENT" "Azure OpenAI deployment name"
-set_secret "AZURE_OPENAI_TTS_DEPLOYMENT" "$AZURE_OPENAI_TTS_DEPLOYMENT" "Azure OpenAI TTS deployment name"
-set_secret "PERPLEXITY_API_KEY" "$PERPLEXITY_API_KEY" "Perplexity API key for web search"
-
-echo "✅ All secrets have been set successfully!"
+echo "✅ GitHub secrets setup completed!"
 echo ""
-echo "🎉 Next steps:"
-echo "1. Push your code to trigger the deployment workflow"
-echo "2. Or manually run the 'Update Backend Secrets' workflow"
-echo "3. Test the web search functionality"
+echo "📋 Summary of secrets set:"
+gh secret list --repo "$REPO"
+
 echo ""
-echo "🔗 GitHub Secrets URL: https://github.com/$REPO/settings/secrets/actions" 
+echo "🔗 You can view and manage secrets at:"
+echo "   https://github.com/$REPO/settings/secrets/actions"
+echo ""
+echo "🚀 Ready to deploy the Orb Game!" 
