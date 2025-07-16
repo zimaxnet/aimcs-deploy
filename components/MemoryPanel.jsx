@@ -252,47 +252,30 @@ const MemoryPanel = ({ isOpen, onClose, onContinueConversation }) => {
           )}
         </div>
         
-        <div className="memory-content">
-          <h4 className="memory-question">{memory.key}</h4>
-          <p className="memory-answer">
-            {selectedMemory?.key === memory.key 
-              ? memory.content 
-              : memory.content.substring(0, 100) + (memory.content.length > 100 ? '...' : '')
-            }
-          </p>
+        <div className="memory-card-content">
+          <p>{memory.content}</p>
         </div>
 
-        <div className="memory-footer">
-          <span className="memory-date">{formatDate(memory.metadata?.timestamp || memory.created_at)}</span>
-          <div className="memory-actions">
+        {selectedMemory?.key === memory.key && (
+          <div className="memory-card-actions">
             <button 
-              onClick={(e) => { 
-                e.stopPropagation(); 
-                continueConversation(memory); 
-              }} 
-              title="Continue Conversation"
-              className="continue-btn"
+              className="action-btn continue" 
+              onClick={(e) => {
+                e.stopPropagation();
+                onContinueConversation(memory.content);
+                onClose();
+              }}
             >
-              💬
+              <span className="action-icon">▶️</span> Resume
             </button>
-            <button 
-              onClick={(e) => { 
-                e.stopPropagation(); 
-                startContinueConversation(memory); 
-              }} 
-              title="Continue with Additional Context"
-              className="continue-with-context-btn"
-            >
-              ➕
+            <button className="action-btn share" onClick={(e) => { e.stopPropagation(); shareMemory(memory); }}>
+              <span className="action-icon">🔗</span> Share
             </button>
-            <button onClick={(e) => { e.stopPropagation(); exportMemory(memory); }} title="Export">
-              📤
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); shareMemory(memory); }} title="Share">
-              📋
+            <button className="action-btn export" onClick={(e) => { e.stopPropagation(); exportMemory(memory); }}>
+              <span className="action-icon">💾</span> Export
             </button>
           </div>
-        </div>
+        )}
       </div>
     );
   };

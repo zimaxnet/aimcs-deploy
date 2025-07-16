@@ -272,10 +272,18 @@ const ChatInterface = () => {
     }
   };
 
-  const handleContinueConversation = (message) => {
-    // Set the input message to the continued conversation
-    setInputMessage(message);
-    // Focus the input field
+  const handleContinueConversation = (messageContent) => {
+    // Split the resumed message into the original question and answer
+    const parts = messageContent.split(' - ');
+    const question = parts[0] || '';
+    const answer = parts.slice(1).join(' - ') || '...';
+
+    // Add the resumed conversation to the chat history
+    addMessage('You', question, 'user', null, null, false, true);
+    addMessage('AIMCS AI', answer, 'ai', null, null, false, true);
+
+    // Close the memory panel and focus the input
+    setShowMemoryPanel(false);
     inputRef.current?.focus();
   };
 

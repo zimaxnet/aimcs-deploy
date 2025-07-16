@@ -623,16 +623,24 @@
 }
 
 .insight-content h5 {
-  margin: 0 0 4px 0;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #374151;
+  margin: 0 0 5px;
+  font-size: 1rem;
+  color: #e0e0e0;
 }
 
 .insight-content p {
   margin: 0;
-  font-size: 0.875rem;
-  color: #6b7280;
+  font-size: 0.9rem;
+  color: #b0b0b0;
+}
+
+.wordcloud-container {
+  height: 300px;
+  width: 100%;
+  background: #2a2a2e;
+  border-radius: 8px;
+  padding: 10px;
+  box-sizing: border-box;
 }
 
 /* System Status */

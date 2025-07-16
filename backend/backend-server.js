@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import { OpenAIClient, AzureKeyCredential } from '@azure/openai';
+import { AzureOpenAI } from '@azure/openai';
 import dotenv from 'dotenv';
 
 // Load environment variables from .env file
@@ -563,13 +563,11 @@ async function initializeServer() {
       console.log('Deployment:', AZURE_OPENAI_DEPLOYMENT);
       console.log('API Version:', "2024-12-01-preview");
       
-      azureOpenAIClient = new OpenAIClient(
-        AZURE_OPENAI_ENDPOINT,
-        new AzureKeyCredential(AZURE_OPENAI_API_KEY),
-        {
-          apiVersion: "2024-12-01-preview"
-        }
-      );
+      azureOpenAIClient = new AzureOpenAI({
+        endpoint: AZURE_OPENAI_ENDPOINT,
+        apiKey: AZURE_OPENAI_API_KEY,
+        apiVersion: "2024-12-01-preview"
+      });
       console.log('✅ Azure OpenAI client initialized successfully');
     } catch (openaiError) {
       console.error('❌ Failed to initialize Azure OpenAI client:', openaiError.message);
@@ -588,6 +586,199 @@ async function initializeServer() {
   });
 
 }
+
+// Orb Game sample topics (will be replaced with Perplexity API later)
+const sampleTopics = [
+  {
+    id: 1,
+    category: 'Technology',
+    headline: 'AI Breakthrough Helps Doctors Diagnose Diseases Faster',
+    summary: 'New artificial intelligence technology is revolutionizing healthcare by helping doctors identify diseases with 95% accuracy in just seconds.',
+    createdAt: new Date(),
+    score: 0
+  },
+  {
+    id: 2,
+    category: 'Science',
+    headline: 'Amazing Ocean Discovery Reveals New Species of Colorful Fish',
+    summary: 'Marine biologists discovered beautiful new fish species in the deep ocean that glow with rainbow colors and help maintain coral reef health.',
+    createdAt: new Date(),
+    score: 0
+  },
+  {
+    id: 3,
+    category: 'Art',
+    headline: 'Street Artists Transform City Walls into Digital Art Gallery',
+    summary: 'Local artists are using augmented reality to turn ordinary walls into interactive art experiences that anyone can view with their phone.',
+    createdAt: new Date(),
+    score: 0
+  },
+  {
+    id: 4,
+    category: 'Nature',
+    headline: 'Bee Population Makes Amazing Recovery Thanks to Community Gardens',
+    summary: 'Bee populations are thriving again as communities create pollinator-friendly gardens, bringing these essential insects back to neighborhoods.',
+    createdAt: new Date(),
+    score: 0
+  },
+  {
+    id: 5,
+    category: 'Sports',
+    headline: 'Young Athletes Break World Records at International Games',
+    summary: 'Teen athletes are shattering records and inspiring a new generation with their incredible performances and positive sportsmanship.',
+    createdAt: new Date(),
+    score: 0
+  },
+  {
+    id: 6,
+    category: 'Music',
+    headline: 'Musicians Invent New Instrument That Plays with Hand Gestures',
+    summary: 'Creative musicians developed an amazing instrument that creates beautiful music through hand movements, making music accessible to everyone.',
+    createdAt: new Date(),
+    score: 0
+  },
+  {
+    id: 7,
+    category: 'Space',
+    headline: 'Mars Mission Discovers Signs of Ancient Life and Water',
+    summary: 'Space explorers found exciting evidence that Mars once had rivers and possibly life, bringing us closer to understanding our solar system.',
+    createdAt: new Date(),
+    score: 0
+  },
+  {
+    id: 8,
+    category: 'Innovation',
+    headline: 'Solar Panels Now Generate Energy Even on Cloudy Days',
+    summary: 'Amazing new solar technology can produce clean energy even when its cloudy, making renewable power available everywhere.',
+    createdAt: new Date(),
+    score: 0
+  }
+];
+
+// Orb Game API Endpoints
+app.get('/api/orb/topics', async (req, res) => {
+  try {
+    // In the future, this will fetch from MongoDB and Perplexity API
+    // For now, return sample topics
+    res.json({
+      success: true,
+      topics: sampleTopics,
+      count: sampleTopics.length
+    });
+  } catch (error) {
+    console.error('Error fetching topics:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch topics' 
+    });
+  }
+});
+
+app.get('/api/orb/tts/:id', async (req, res) => {
+  try {
+    const topicId = parseInt(req.params.id);
+    const topic = sampleTopics.find(t => t.id === topicId);
+    
+    if (!topic) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Topic not found' 
+      });
+    }
+
+    // Generate TTS audio using Azure OpenAI
+    const ttsText = `${topic.headline}. ${topic.summary}`;
+    
+    const ttsResponse = await fetch(`${AZURE_OPENAI_ENDPOINT}openai/deployments/${AZURE_OPENAI_TTS_DEPLOYMENT}/audio/speech?api-version=2025-03-01-preview`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': AZURE_OPENAI_API_KEY,
+      },
+      body: JSON.stringify({
+        model: AZURE_OPENAI_TTS_DEPLOYMENT,
+        input: ttsText,
+        voice: 'alloy',
+        response_format: 'mp3',
+        speed: 1.0
+      })
+    });
+
+    if (ttsResponse.ok) {
+      const audioBuffer = await ttsResponse.arrayBuffer();
+      const audioBase64 = Buffer.from(audioBuffer).toString('base64');
+      
+      res.json({
+        success: true,
+        audioData: audioBase64,
+        topic: topic
+      });
+    } else {
+      throw new Error('TTS generation failed');
+    }
+  } catch (error) {
+    console.error('Error generating TTS:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to generate audio' 
+    });
+  }
+});
+
+app.post('/api/orb/track', async (req, res) => {
+  try {
+    const { id, action, duration } = req.body;
+    
+    // Find and update topic score
+    const topic = sampleTopics.find(t => t.id === parseInt(id));
+    if (topic) {
+      // Simple scoring: click = 1, listen completion = 10
+      const points = action === 'click' ? 1 : (action === 'listen' ? 10 : 0);
+      topic.score += points;
+      
+      console.log(`Topic ${id} (${topic.category}): ${action} action, +${points} points, total: ${topic.score}`);
+    }
+    
+    // In the future, this will store to MongoDB with user sessions
+    res.json({
+      success: true,
+      message: 'Interaction tracked',
+      newScore: topic ? topic.score : 0
+    });
+  } catch (error) {
+    console.error('Error tracking interaction:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to track interaction' 
+    });
+  }
+});
+
+app.get('/api/orb/leaderboard', async (req, res) => {
+  try {
+    // Sort topics by score and return top ones
+    const topTopics = [...sampleTopics]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10)
+      .map(topic => ({
+        id: topic.id,
+        category: topic.category,
+        headline: topic.headline,
+        score: topic.score
+      }));
+    
+    res.json({
+      success: true,
+      leaderboard: topTopics
+    });
+  } catch (error) {
+    console.error('Error fetching leaderboard:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch leaderboard' 
+    });
+  }
+});
 
 // Start the server immediately
 const PORT = process.env.PORT || 3000;

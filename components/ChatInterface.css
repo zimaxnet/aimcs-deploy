@@ -258,21 +258,13 @@
 
 .search-indicator {
   margin-left: 8px;
-  font-size: 14px;
-  opacity: 0.8;
+  cursor: help;
 }
 
 .memory-indicator {
   margin-left: 8px;
-  font-size: 14px;
-  opacity: 0.8;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0% { opacity: 0.8; }
-  50% { opacity: 1; }
-  100% { opacity: 0.8; }
+  font-size: 0.8em;
+  cursor: help;
 }
 
 .message-text {

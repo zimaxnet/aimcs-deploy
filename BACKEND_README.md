@@ -1,6 +1,6 @@
-# AIMCS Backend with WebSocket Audio Support
+# AIMCS Backend with Orb Game & WebSocket Audio Support
 
-This is the backend server for the AIMCS (AI Multimodal Customer System) with real-time WebSocket audio streaming capabilities.
+This is the backend server for the AIMCS (AI Multimodal Customer System) featuring the new **Orb Game** interactive experience plus real-time WebSocket audio streaming capabilities.
 
 ## ⚠️ CRITICAL: Backend File Structure
 
@@ -55,6 +55,24 @@ az containerapp update --name aimcs-backend-eastus2 --resource-group aimcs-rg-ea
 - **Region**: eastus2
 - **Platform**: Azure Container Apps
 
+## 🎮 **New Orb Game Features**
+
+### Interactive 3D News Discovery
+- **Topic Management**: Curated positive news content with categories
+- **TTS Generation**: Azure OpenAI text-to-speech for all topics
+- **Engagement Tracking**: User interaction analytics and scoring
+- **Real-time Leaderboards**: Trending topics and user achievements
+
+### Sample Topics Available
+- 🤖 **Technology**: AI breakthroughs and innovations
+- 🐠 **Science**: Amazing discoveries and research
+- 🎨 **Art**: Creative expressions and cultural news
+- 🐝 **Nature**: Environmental success stories
+- 🚀 **Space**: Space exploration and discoveries
+- 🎵 **Music**: Musical innovations and artists
+- 🏃 **Sports**: Athletic achievements and records
+- 💡 **Innovation**: Breakthrough technologies and ideas
+
 ## 🏗️ **Architecture**
 
 ```
@@ -65,7 +83,11 @@ az containerapp update --name aimcs-backend-eastus2 --resource-group aimcs-rg-ea
 │  ├── HTTP API Endpoints                                     │
 │  │   ├── GET /health                                        │
 │  │   ├── GET /api/status                                    │
-│  │   └── POST /api/chat                                     │
+│  │   ├── GET /api/orb/topics                                │
+│  │   ├── GET /api/orb/tts/:id                              │
+│  │   ├── POST /api/orb/track                               │
+│  │   ├── GET /api/orb/leaderboard                          │
+│  │   └── POST /api/chat                                    │
 │  └── WebSocket Server                                       │
 │      └── WS /ws/audio                                       │
 ├─────────────────────────────────────────────────────────────┤
@@ -76,34 +98,32 @@ az containerapp update --name aimcs-backend-eastus2 --resource-group aimcs-rg-ea
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Real-Time Audio/AI Flow
+### Orb Game Flow
 
 ```mermaid
 flowchart TD
-  A["Frontend (Browser)"] -- "WebSocket: /ws/audio" --> B["Backend (Node.js Container App)"]
-  B -- "HTTP: Speech-to-Text API" --> C["Azure Speech Services"]
-  B -- "HTTP: Chat Completion API" --> D["Azure OpenAI"]
-  C -- "Transcript (text)" --> B
-  D -- "AI Response (text)" --> B
-  B -- "WebSocket: AI/Transcript Response" --> A
+  A["Frontend (3D Orb)"] -- "HTTP: GET /api/orb/topics" --> B["Backend (Node.js Container App)"]
+  A -- "HTTP: GET /api/orb/tts/:id" --> B
+  A -- "HTTP: POST /api/orb/track" --> B
+  B -- "HTTP: TTS API" --> C["Azure OpenAI"]
+  C -- "Audio Data" --> B
+  B -- "Topics & Audio" --> A
 
   subgraph "Azure Cloud"
     C
-    D
   end
 
   style A fill:#e0f7fa,stroke:#00796b
   style B fill:#fff3e0,stroke:#f57c00
-  style C fill:#e8eaf6,stroke:#3949ab
-  style D fill:#f3e5f5,stroke:#8e24aa
+  style C fill:#f3e5f5,stroke:#8e24aa
 ```
 
 **Flow Explanation:**
-- The frontend streams audio to the backend via WebSocket (`/ws/audio`).
-- The backend can send the audio to Azure Speech Services for transcription.
-- The backend can send the transcript to Azure OpenAI for an AI response.
-- The backend sends the transcript and/or AI response back to the frontend via WebSocket.
-- All communication with Azure services is via HTTP APIs from the backend (never direct from the browser).
+- The frontend loads topics from `/api/orb/topics`
+- User clicks a topic satellite → requests TTS audio from `/api/orb/tts/:id`
+- Backend generates audio via Azure OpenAI TTS
+- User interaction tracked via `/api/orb/track`
+- All communication with Azure services is via HTTP APIs from the backend
 
 ## 📡 **API Endpoints**
 
@@ -113,13 +133,49 @@ flowchart TD
 |----------|--------|-------------|----------|
 | `/health` | GET | Health check | Status, uptime, connections |
 | `/api/status` | GET | API status | Endpoints, active connections |
-| `/api/chat` | POST | Chat API | Echo response for testing |
+| `/api/orb/topics` | GET | Get available topics | Array of topic objects |
+| `/api/orb/tts/:id` | GET | Generate TTS for topic | Base64 audio data |
+| `/api/orb/track` | POST | Track user interaction | Success confirmation |
+| `/api/orb/leaderboard` | GET | Get trending topics | Top topics by score |
+| `/api/chat` | POST | Legacy chat API | Echo response for testing |
 
 ### WebSocket Endpoint
 
 | Endpoint | Protocol | Description |
 |----------|----------|-------------|
 | `/ws/audio` | WSS | Real-time audio streaming |
+
+## 🎮 **Orb Game API Details**
+
+### Topic Object Structure
+```javascript
+{
+  id: 1,
+  category: "Technology",
+  headline: "AI Breakthrough Helps Doctors Diagnose Diseases Faster",
+  summary: "New artificial intelligence technology is revolutionizing healthcare...",
+  createdAt: ISODate,
+  score: 0
+}
+```
+
+### TTS Response Structure
+```javascript
+{
+  success: true,
+  audioData: "base64_encoded_mp3_data",
+  topic: { /* topic object */ }
+}
+```
+
+### Track Interaction Request
+```javascript
+{
+  id: 1,           // Topic ID
+  action: "click",  // "click" or "listen"
+  duration: 30      // Optional: seconds listened
+}
+```
 
 ## 🔌 **WebSocket Message Types**
 
@@ -169,7 +225,7 @@ chmod +x deploy-backend.sh
 ## 🛠️ Recent Fixes: Azure OpenAI TTS & MongoDB Atlas SSL
 
 ### Azure OpenAI TTS (Text-to-Speech)
-- Integrated Azure OpenAI TTS endpoint for audio responses.
+- Integrated Azure OpenAI TTS endpoint for topic audio generation.
 - Uses deployment (e.g., `gpt-4o-mini-tts`) and API version `2025-03-01-preview`.
 - Requires these environment variables:
   - `AZURE_OPENAI_TTS_DEPLOYMENT` (e.g., `gpt-4o-mini-tts`)
@@ -209,3 +265,43 @@ const ttsResponse = await fetch(`${process.env.AZURE_OPENAI_ENDPOINT}openai/depl
   })
 });
 ```
+
+## 🎯 **Testing Orb Game APIs**
+
+### Test Topic Fetching
+```bash
+curl https://api.aimcs.net/api/orb/topics
+```
+
+### Test TTS Generation
+```bash
+curl https://api.aimcs.net/api/orb/tts/1
+```
+
+### Test Interaction Tracking
+```bash
+curl -X POST https://api.aimcs.net/api/orb/track \
+  -H "Content-Type: application/json" \
+  -d '{"id": 1, "action": "click"}'
+```
+
+### Test Leaderboard
+```bash
+curl https://api.aimcs.net/api/orb/leaderboard
+```
+
+## 🔮 **Future Enhancements**
+
+### Planned Orb Game Features
+- **Perplexity API Integration**: Live topic fetching from news sources
+- **MongoDB Topic Storage**: Persistent topic database with user engagement
+- **Achievement System**: Badges and milestones for user engagement
+- **Personalization**: ML-based topic recommendations
+- **Cross-site Learning**: User preferences that follow across websites
+
+### Technical Improvements
+- **Audio Caching**: Store generated TTS to reduce API calls
+- **Rate Limiting**: Prevent abuse of TTS generation
+- **Content Moderation**: Filter topics for positivity and appropriateness
+- **Analytics Dashboard**: Real-time engagement metrics
+- **Widget Embedding**: Easy integration for other websites
